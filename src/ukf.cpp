@@ -99,6 +99,14 @@ UKF::UKF() {
   // initialize predicted sigma points matrix
   Xsig_pred_ = MatrixXd(n_x_, n_sig_);
 
+  // initialize laser measurement noise matrix
+  static constexpr int n_z_laser = 2; // laser can measure px and py
+  R_laser_ = MatrixXd(n_z_laser, n_z_laser);
+  double var_laspx = std_laspx_ * std_laspx_;
+  double var_laspy = std_laspy_ * std_laspy_;
+  R_laser_ <<  var_laspx,          0,
+                       0,  var_laspy;
+
   // initialize radar measurement noise matrix
   static constexpr int n_z_radar = 3; // radar can measure radial distance , velocity yaw, and velocity
   R_radar_ = MatrixXd(n_z_radar, n_z_radar);
@@ -283,6 +291,50 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    * covariance, P_.
    * You can also calculate the lidar NIS, if desired.
    */
+
+  // set measurement dimension, laser can measure px and py
+  static constexpr int n_z = 2;
+
+  // transform sigma points into measurement space
+  MatrixXd Z_sig = MatrixXd(n_z, n_sig_);
+  for (size_t i = 0; i < n_sig_; ++i) {
+    Z_sig(0, i) = Xsig_pred_(0,i); // px
+    Z_sig(1, i) = Xsig_pred_(1,i); // py
+  }
+
+  // calculate mean predicted measurement
+  VectorXd z_pred = VectorXd(n_z);
+  z_pred.fill(0.0);
+  for (size_t i = 0; i < n_sig_; ++i) {
+    z_pred += weights_(i) * Z_sig.col(i);
+  }
+
+  // calculate innovation covariance matrix S
+  MatrixXd S = MatrixXd(n_z, n_z);
+  S.fill(0.0);
+  // and cross correlatin matrix Tc
+  MatrixXd Tc = MatrixXd(n_x_, n_z);
+  Tc.fill(0.0);
+  for (size_t i = 0; i < n_sig_; ++i) {
+    VectorXd z_delta = Z_sig.col(i) - z_pred;
+
+    S += weights_(i) * (z_delta * z_delta.transpose());
+
+    VectorXd x_delta = Xsig_pred_.col(i) - x_;
+    x_delta(3) = normalizeAngle(x_delta(3)); // normalize yaw
+
+    Tc += weights_(i) * (x_delta * z_delta.transpose());
+  }
+  S += R_laser_;
+
+  // calculate Kalman gain K
+  MatrixXd K = Tc * S.inverse();
+
+  // update state mean and covariance matrix
+  VectorXd z = meas_package.raw_measurements_;
+  VectorXd z_delta = z - z_pred;
+  x_ += K * z_delta;
+  P_ -= K * S * K.transpose();
 }
 
 void UKF::UpdateRadar(MeasurementPackage meas_package) {

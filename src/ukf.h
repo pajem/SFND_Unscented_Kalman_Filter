@@ -60,6 +60,9 @@ class UKF {
   // process noise matrix
   Eigen::MatrixXd Q_;
 
+  // laser measurement noise matrix
+  Eigen::MatrixXd R_laser_;
+
   // radar measurement noise matrix
   Eigen::MatrixXd R_radar_;
 
