@@ -81,6 +81,7 @@ UKF::UKF() {
   // initialize process noise matrix
   int n_noise = 2; // noise vector size (longitudinal acceleration and yaw acceleration)
   Q_ = MatrixXd(n_noise, n_noise);
+  Q_.fill(0.0);
   Q_ << var_a, 0, 0, var_yawdd;
 
   // dimensions and parameters
@@ -203,6 +204,7 @@ void UKF::Prediction(double delta_t) {
 
   // create augmented state covariance matrix
   MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+  P_aug.fill(0.0);
   P_aug.topLeftCorner(n_x_, n_x_) = P_; // top left is P
   P_aug.bottomRightCorner(Q_.rows(), Q_.cols()) = Q_; // bottom right is Q
 
@@ -210,6 +212,7 @@ void UKF::Prediction(double delta_t) {
   MatrixXd A = P_aug.llt().matrixL();
   // create augmented sigma points
   MatrixXd Xsig_aug = MatrixXd(n_aug_, n_sig_);
+  Xsig_aug.fill(0.0);
   Xsig_aug.col(0) = x_aug; // first column is the mean vector
   for (size_t i = 1; i<= n_aug_; ++i) {
       VectorXd sig_offset = std::sqrt(lambda_ + n_aug_) * A.col(i - 1);
@@ -276,7 +279,7 @@ void UKF::Prediction(double delta_t) {
   for (size_t i = 0; i < n_sig_; ++i) {
     VectorXd x_delta = Xsig_pred_.col(i) - x;
     x_delta(3) = normalizeAngle(x_delta(3)); // normalize yaw
-    P += weights_(i) * (x_delta * x_delta.transpose());
+    P += weights_(i) * x_delta * x_delta.transpose();
   }
 
   // update state vector and covariance matrix
@@ -297,9 +300,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   // transform sigma points into measurement space
   MatrixXd Z_sig = MatrixXd(n_z, n_sig_);
+  Z_sig.fill(0.0);
   for (size_t i = 0; i < n_sig_; ++i) {
-    Z_sig(0, i) = Xsig_pred_(0,i); // px
-    Z_sig(1, i) = Xsig_pred_(1,i); // py
+    Z_sig(0, i) = Xsig_pred_(0, i); // px
+    Z_sig(1, i) = Xsig_pred_(1, i); // py
   }
 
   // calculate mean predicted measurement
@@ -318,12 +322,12 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   for (size_t i = 0; i < n_sig_; ++i) {
     VectorXd z_delta = Z_sig.col(i) - z_pred;
 
-    S += weights_(i) * (z_delta * z_delta.transpose());
+    S += weights_(i) * z_delta * z_delta.transpose();
 
     VectorXd x_delta = Xsig_pred_.col(i) - x_;
     x_delta(3) = normalizeAngle(x_delta(3)); // normalize yaw
 
-    Tc += weights_(i) * (x_delta * z_delta.transpose());
+    Tc += weights_(i) * x_delta * z_delta.transpose();
   }
   S += R_laser_;
 
@@ -350,16 +354,17 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   // transform sigma points into measurement space
   MatrixXd Z_sig = MatrixXd(n_z, n_sig_);
+  Z_sig.fill(0.0);
   for (size_t i = 0; i < n_sig_; ++i) {
     double px = Xsig_pred_(0,i);
     double py = Xsig_pred_(1,i);
     double v = Xsig_pred_(2,i);
     double yaw = Xsig_pred_(3,i);
 
-    double vx = std::cos(yaw)*v;
-    double vy = std::sin(yaw)*v;
+    double vx = std::cos(yaw) * v;
+    double vy = std::sin(yaw) * v;
 
-    Z_sig(0, i) = std::sqrt(px *px + py * py); // radial distance
+    Z_sig(0, i) = std::sqrt(px * px + py * py); // radial distance
     Z_sig(1, i) = std::atan2(py, px); // yaw
     Z_sig(2, i) = (px * vx + py * vy) / Z_sig(0, i); // velocity
   }
@@ -381,12 +386,12 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     VectorXd z_delta = Z_sig.col(i) - z_pred;
     z_delta(1) = normalizeAngle(z_delta(1)); // normalize yaw
 
-    S += weights_(i) * (z_delta * z_delta.transpose());
+    S += weights_(i) * z_delta * z_delta.transpose();
 
     VectorXd x_delta = Xsig_pred_.col(i) - x_;
     x_delta(3) = normalizeAngle(x_delta(3)); // normalize yaw
 
-    Tc += weights_(i) * (x_delta * z_delta.transpose());
+    Tc += weights_(i) * x_delta * z_delta.transpose();
   }
   S += R_radar_;
 
