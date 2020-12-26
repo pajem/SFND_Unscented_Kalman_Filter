@@ -1,3 +1,4 @@
+#include <iostream>
 #include <stdexcept>
 
 #include "ukf.h"
@@ -24,9 +25,11 @@ UKF::UKF() {
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   std_a_ = 30; // TODO: change to a more approriate value
+  double var_a = std_a_ * std_a_;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   std_yawdd_ = 30; // TODO: change to a more approriate value
+  double var_yawdd = std_yawdd_ * std_yawdd_;
   
   /**
    * DO NOT MODIFY measurement noise values below.
@@ -63,9 +66,14 @@ UKF::UKF() {
   // initialize state covariance matrix as identity matrix
   P_.setIdentity();
 
+  // initialize process noise matrix
+  int n_noise = 2; // noise vector size (longitudinal acceleration and yaw acceleration)
+  Q_ = MatrixXd(n_noise, n_noise);
+  Q_ << var_a, 0, 0, var_yawdd;
+
   // dimensions and parameters
   n_x_ = 5; // for CTRV model (px, py, v, yaw, yaw rate)
-  n_aug_ = n_x_ + 2; // augment with noise vector (longitudinal acceleration and yaw acceleration)
+  n_aug_ = n_x_ + n_noise; // augment with noise vector (longitudinal acceleration and yaw acceleration)
   n_sig_ = 2 * n_aug_ + 1; // 2 sigma points for each state variable, plus 1 sigma point for the mean
   lambda_ = 3 - n_aug_; // use typical lambda design parameter value
 
@@ -152,6 +160,33 @@ void UKF::Prediction(double delta_t) {
    * Modify the state vector, x_. Predict sigma points, the state, 
    * and the state covariance matrix.
    */
+
+  /**
+   * 1. Generate augmented sigma points.
+   */
+  // create augmented mean vector
+  VectorXd x_aug = VectorXd(n_aug_);
+  x_aug.head(5) = x_;
+  x_aug(5) = 0; // noise mean is 0
+  x_aug(6) = 0; // noise mean is 0
+
+  // create augmented state covariance matrix
+  MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+  P_aug.topLeftCorner(n_x_, n_x_) = P_; // top left is P
+  P_aug.bottomRightCorner(Q_.rows(), Q_.cols()) = Q_; // bottom right is Q
+
+  // calculate square root matrix for generation of sigma points
+  MatrixXd A = P_aug.llt().matrixL();
+  // create augmented sigma points
+  MatrixXd Xsig_aug = MatrixXd(n_aug_, n_sig_);
+  Xsig_aug.col(0) = x_aug; // first column is the mean vector
+  for (size_t i = 1; i<= n_aug_; ++i) {
+      VectorXd sig_offset = std::sqrt(lambda_ + n_aug_) * A.col(i - 1);
+      // positive offset sigma point
+      Xsig_aug.col(i) = x_aug + sig_offset;
+      // negative offset sigma point
+      Xsig_aug.col(i + n_aug_) = x_aug - sig_offset;
+  }
 }
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) {

@@ -57,6 +57,9 @@ class UKF {
   // state covariance matrix
   Eigen::MatrixXd P_;
 
+  // process noise matrix
+  Eigen::MatrixXd Q_;
+
   // predicted sigma points matrix
   Eigen::MatrixXd Xsig_pred_;
 
