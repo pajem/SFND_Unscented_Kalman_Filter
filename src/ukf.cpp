@@ -84,7 +84,7 @@ UKF::~UKF() {}
 
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   /**
-   * TODO: Complete this function! Make sure you switch between lidar and radar
+   * DONE: Complete this function! Make sure you switch between lidar and radar
    * measurements.
    */
 
@@ -121,6 +121,29 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     is_initialized_ = true;
     return;
   }
+
+  // calculate dt in seconds
+  static constexpr double US_TO_S = 1 / 1e6; // microseconds to seconds conversion factor
+  double dt = (meas_package.timestamp_ - time_us_) / US_TO_S;
+  // set last timestamp
+  time_us_ = meas_package.timestamp_;
+
+  // prediction
+  this->Prediction(dt);
+
+  // measurement update
+  switch(meas_package.sensor_type_) {
+      case MeasurementPackage::SensorType::LASER: {
+        this->UpdateLidar(meas_package);
+        break;
+      }
+      case MeasurementPackage::SensorType::RADAR: {
+        this->UpdateRadar(meas_package);
+        break;
+      }
+      default:
+        throw std::runtime_error("Error! Received measurement from unknown SensorType");
+    }
 }
 
 void UKF::Prediction(double delta_t) {
