@@ -36,11 +36,11 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30; // TODO: change to a more approriate value
+  std_a_ = 2.0; // TODO: change to a more approriate value
   double var_a = std_a_ * std_a_;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30; // TODO: change to a more approriate value
+  std_yawdd_ = 1.0; // TODO: change to a more approriate value
   double var_yawdd = std_yawdd_ * std_yawdd_;
   
   /**
