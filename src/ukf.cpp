@@ -13,7 +13,7 @@ namespace {
 // helper function to normalize angle in the range (-PI, +PI]
 double normalizeAngle(double angle) {
   while (angle > M_PI) angle -= 2 * M_PI;
-  while (angle <= -M_PI) angle += 2* M_PI;
+  while (angle <= -M_PI) angle += 2 * M_PI;
   return angle;
 };
 
@@ -97,7 +97,17 @@ UKF::UKF() {
   }
 
   // initialize predicted sigma points matrix
-  Xsig_pred_ = Eigen::MatrixXd(n_x_, n_sig_);
+  Xsig_pred_ = MatrixXd(n_x_, n_sig_);
+
+  // initialize radar measurement noise matrix
+  static constexpr int n_z_radar = 3; // radar can measure radial distance , velocity yaw, and velocity
+  R_radar_ = MatrixXd(n_z_radar, n_z_radar);
+  double var_radr = std_radr_ * std_radr_;
+  double var_radphi = std_radphi_ * std_radphi_;
+  double var_radrd = std_radrd_ * std_radrd_;
+  R_radar_ <<  var_radr,          0,         0,
+                      0, var_radphi,         0,
+                      0,          0, var_radrd;
 }
 
 UKF::~UKF() {}
@@ -144,7 +154,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
   // calculate dt in seconds
   static constexpr double US_TO_S = 1 / 1e6; // microseconds to seconds conversion factor
-  double dt = (meas_package.timestamp_ - time_us_) / US_TO_S;
+  double dt = (meas_package.timestamp_ - time_us_) * US_TO_S;
   // set last timestamp
   time_us_ = meas_package.timestamp_;
 
@@ -153,17 +163,17 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
   // measurement update
   switch(meas_package.sensor_type_) {
-      case MeasurementPackage::SensorType::LASER: {
-        this->UpdateLidar(meas_package);
-        break;
-      }
-      case MeasurementPackage::SensorType::RADAR: {
-        this->UpdateRadar(meas_package);
-        break;
-      }
-      default:
-        throw std::runtime_error("Error! Received measurement from unknown SensorType");
+    case MeasurementPackage::SensorType::LASER: {
+      if (use_laser_) this->UpdateLidar(meas_package);
+      break;
     }
+    case MeasurementPackage::SensorType::RADAR: {
+      if (use_radar_) this->UpdateRadar(meas_package);
+      break;
+    }
+    default:
+      throw std::runtime_error("Error! Received measurement from unknown SensorType");
+  }
 }
 
 void UKF::Prediction(double delta_t) {
@@ -282,4 +292,59 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
    * covariance, P_.
    * You can also calculate the radar NIS, if desired.
    */
+
+  // set measurement dimension, radar can measure radial distance , velocity yaw, and velocity
+  static constexpr int n_z = 3;
+
+  // transform sigma points into measurement space
+  MatrixXd Z_sig = MatrixXd(n_z, n_sig_);
+  for (size_t i = 0; i < n_sig_; ++i) {
+    double px = Xsig_pred_(0,i);
+    double py = Xsig_pred_(1,i);
+    double v = Xsig_pred_(2,i);
+    double yaw = Xsig_pred_(3,i);
+
+    double vx = std::cos(yaw)*v;
+    double vy = std::sin(yaw)*v;
+
+    Z_sig(0, i) = std::sqrt(px *px + py * py); // radial distance
+    Z_sig(1, i) = std::atan2(py, px); // yaw
+    Z_sig(2, i) = (px * vx + py * vy) / Z_sig(0, i); // velocity
+  }
+
+  // calculate mean predicted measurement
+  VectorXd z_pred = VectorXd(n_z);
+  z_pred.fill(0.0);
+  for (size_t i = 0; i < n_sig_; ++i) {
+    z_pred += weights_(i) * Z_sig.col(i);
+  }
+
+  // calculate innovation covariance matrix S
+  MatrixXd S = MatrixXd(n_z, n_z);
+  S.fill(0.0);
+  // and cross correlatin matrix Tc
+  MatrixXd Tc = MatrixXd(n_x_, n_z);
+  Tc.fill(0.0);
+  for (size_t i = 0; i < n_sig_; ++i) {
+    VectorXd z_delta = Z_sig.col(i) - z_pred;
+    z_delta(1) = normalizeAngle(z_delta(1)); // normalize yaw
+
+    S += weights_(i) * (z_delta * z_delta.transpose());
+
+    VectorXd x_delta = Xsig_pred_.col(i) - x_;
+    x_delta(3) = normalizeAngle(x_delta(3)); // normalize yaw
+
+    Tc += weights_(i) * (x_delta * z_delta.transpose());
+  }
+  S += R_radar_;
+
+  // calculate Kalman gain K
+  MatrixXd K = Tc * S.inverse();
+
+  // update state mean and covariance matrix
+  VectorXd z = meas_package.raw_measurements_;
+  VectorXd z_delta = z - z_pred;
+  z_delta(1) = normalizeAngle(z_delta(1)); // normalize yaw
+  x_ += K * z_delta;
+  P_ -= K * S * K.transpose();
 }
