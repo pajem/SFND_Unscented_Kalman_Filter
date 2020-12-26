@@ -1,3 +1,5 @@
+#include <stdexcept>
+
 #include "ukf.h"
 #include "Eigen/Dense"
 
@@ -85,6 +87,40 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    * TODO: Complete this function! Make sure you switch between lidar and radar
    * measurements.
    */
+
+  if (!is_initialized_) {
+    switch(meas_package.sensor_type_) {
+      case MeasurementPackage::SensorType::LASER: {
+        double px = meas_package.raw_measurements_(0);
+        double py = meas_package.raw_measurements_(1);
+
+        double v = 0;
+        double yaw = 0;
+        double yawd = 0;
+
+        x_ << px, py, v, yaw, yawd;
+        break;
+      }
+      case MeasurementPackage::SensorType::RADAR: {
+        double r = meas_package.raw_measurements_(0);
+        double yaw = meas_package.raw_measurements_(1);
+        double v = meas_package.raw_measurements_(2);
+
+        double px = r * std::cos(yaw);
+        double py = r * std::sin(yaw);
+        double yawd = 0;
+
+        x_ << px, py, v, yaw, 0;
+        break;
+      }
+      default:
+        throw std::runtime_error("Error! Received measurement from unknown SensorType");
+    }
+
+    time_us_ = meas_package.timestamp_;
+    is_initialized_ = true;
+    return;
+  }
 }
 
 void UKF::Prediction(double delta_t) {
