@@ -36,11 +36,11 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 2.0; // TODO: change to a more approriate value
+  std_a_ = 3.0; // TODO: change to a more approriate value
   double var_a = std_a_ * std_a_;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 1.0; // TODO: change to a more approriate value
+  std_yawdd_ = 0.5; // TODO: change to a more approriate value
   double var_yawdd = std_yawdd_ * std_yawdd_;
   
   /**
@@ -77,6 +77,8 @@ UKF::UKF() {
 
   // initialize state covariance matrix as identity matrix
   P_.setIdentity();
+  P_(0, 0) = 0.01; // initial covariance for px
+  P_(1, 1) = 0.01; // initial covariance for py
 
   // initialize process noise matrix
   int n_noise = 2; // noise vector size (longitudinal acceleration and yaw acceleration)
