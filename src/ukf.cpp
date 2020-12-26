@@ -8,6 +8,17 @@
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
+namespace {
+
+// helper function to normalize angle in the range (-PI, +PI]
+double normalizeAngle(double angle) {
+  while (angle > M_PI) angle -= 2 * M_PI;
+  while (angle <= -M_PI) angle += 2* M_PI;
+  return angle;
+};
+
+} // namespace
+
 /**
  * Initializes Unscented Kalman filter
  */
@@ -165,6 +176,7 @@ void UKF::Prediction(double delta_t) {
   /**
    * 1. Generate augmented sigma points.
    */
+
   // create augmented mean vector
   VectorXd x_aug = VectorXd(n_aug_);
   x_aug.head(5) = x_;
@@ -192,6 +204,7 @@ void UKF::Prediction(double delta_t) {
   /**
    * 2. Predict sigma points.
    */
+
   for (size_t i = 0; i < n_sig_; ++i) {
     double px = Xsig_aug(0, i);
     double py = Xsig_aug(1, i);
@@ -225,6 +238,32 @@ void UKF::Prediction(double delta_t) {
     Xsig_pred_(4,i) = yawd_p;
   }
 
+  /**
+   * 3. Predict mean and covariance.
+   */
+
+  // create vector for predicted state
+  VectorXd x = VectorXd(n_x_);
+  x.fill(0.0);
+
+  // create covariance matrix for prediction
+  MatrixXd P = MatrixXd(n_x_, n_x_);
+  P.fill(0.0);
+
+  // predict state mean
+  for (size_t i = 0; i < n_sig_; ++i) {
+    x += weights_(i) * Xsig_pred_.col(i);
+  }
+  // predict state covariance matrix
+  for (size_t i = 0; i < n_sig_; ++i) {
+    VectorXd x_delta = Xsig_pred_.col(i) - x;
+    x_delta(3) = normalizeAngle(x_delta(3)); // normalize yaw
+    P += weights_(i) * (x_delta * x_delta.transpose());
+  }
+
+  // update state vector and covariance matrix
+  x_ = x;
+  P_ = P;
 }
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
