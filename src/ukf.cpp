@@ -21,10 +21,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  std_a_ = 30; // TODO: change to a more approriate value
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30;
+  std_yawdd_ = 30; // TODO: change to a more approriate value
   
   /**
    * DO NOT MODIFY measurement noise values below.
@@ -54,6 +54,28 @@ UKF::UKF() {
    * TODO: Complete the initialization. See ukf.h for other member properties.
    * Hint: one or more values initialized above might be wildly off...
    */
+
+  // the UKF will be initialized on first sensor measurement
+  is_initialized_ = false;
+
+  // initialize state covariance matrix as identity matrix
+  P_.setIdentity();
+
+  // dimensions and parameters
+  n_x_ = 5; // for CTRV model (px, py, v, yaw, yaw rate)
+  n_aug_ = n_x_ + 2; // augment with noise vector (longitudinal acceleration and yaw acceleration)
+  n_sig_ = 2 * n_aug_ + 1; // 2 sigma points for each state variable, plus 1 sigma point for the mean
+  lambda_ = 3 - n_aug_; // use typical lambda design parameter value
+
+  // generate weights for predicted mean and covariance
+  weights_ = VectorXd(n_sig_);
+  weights_(0) = lambda_ / (lambda_ + n_aug_);
+  for (size_t i = 1; i < n_sig_; ++i) {
+      weights_(i) = 0.5 / (lambda_ + n_aug_);
+  }
+
+  // initialize predicted sigma points matrix
+  Xsig_pred_ = Eigen::MatrixXd(n_x_, n_aug_);
 }
 
 UKF::~UKF() {}
